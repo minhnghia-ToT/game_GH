@@ -12,28 +12,20 @@ export default function Home() {
   const [screen, setScreen] = useState("menu");
   const [score, setScore] = useState(0);
   const [gameId, setGameId] = useState(0);
-  const [bossLosses, setBossLosses] = useState(0);
   const [victoryType, setVictoryType] = useState("princess");
 
-  // Bắt đầu một hành trình mới: xóa số lần thua Boss.
   const handleStartGame = () => {
     setScore(0);
-    setBossLosses(0);
     setVictoryType("princess");
     setGameId((prev) => prev + 1);
     setScreen("playing");
   };
 
-  // Chơi lại: giữ nguyên số lần thất bại với Boss.
   const handleRetry = () => {
     setScore(0);
     setGameId((prev) => prev + 1);
     setScreen("playing");
   };
-
-  const handleBossLoss = useCallback(() => {
-    setBossLosses((prev) => prev + 1);
-  }, []);
 
   const handleGameOver = useCallback((finalScore) => {
     setScore(finalScore);
@@ -47,7 +39,6 @@ export default function Home() {
   }, []);
 
   const handleBackToMenu = () => {
-    setBossLosses(0);
     setScreen("menu");
   };
 
@@ -75,8 +66,6 @@ export default function Home() {
       {screen === "playing" && (
         <GameCanvas
           key={gameId}
-          bossLosses={bossLosses}
-          onBossLoss={handleBossLoss}
           onGameOver={handleGameOver}
           onVictory={handleVictory}
           onExit={handleBackToMenu}

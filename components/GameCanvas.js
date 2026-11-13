@@ -8,8 +8,6 @@ const HEIGHT = 720;
 const WIN_SCORE = 100;
 
 export default function GameCanvas({
-  bossLosses = 0,
-  onBossLoss,
   onGameOver,
   onVictory,
   onExit,
@@ -74,6 +72,7 @@ export default function GameCanvas({
       bossX: WIDTH / 2,
       bossY: 125,
       bossShots: [],
+      bossAttackCount: 0,
       princeMode: false,
       bossDialogueOpen: false,
       lastBossAttack: 0,
@@ -266,9 +265,6 @@ export default function GameCanvas({
 
       if (game.lives <= 0) {
         game.ended = true;
-        if (game.bossActive && !game.princeMode) {
-          onBossLoss?.();
-        }
         onGameOver?.(game.score);
       }
     }
@@ -280,12 +276,22 @@ export default function GameCanvas({
       game.bossHp = 100;
       game.bossX = WIDTH / 2;
       game.bossShots = [];
+      game.bossAttackCount = 0;
       game.ghosts = [];
       game.bullets = [];
-      game.princeMode = bossLosses > 3;
+      game.princeMode = false;
       game.bossDialogueOpen = true;
-      game.lastBossAttack = now;
+      game.lastBossAttack = now - 650;
       game.lastPrinceSlash = now;
+      setHud((current) => ({
+        ...current,
+        score: WIN_SCORE,
+        lives: game.lives,
+        level: getDifficulty().level,
+        damage: game.damage,
+        shield: false,
+        princeMode: false,
+      }));
 
       setBossDialogue({
         title: game.princeMode ? "HOÀNG TỬ" : "THẮNG A.K.A ACQUY 666",
@@ -293,6 +299,30 @@ export default function GameCanvas({
           ? "Anh xin lỗi vì để em phải chiến đấu một mình, anh đã ở đây bên em rồi em đừng lo"
           : "Chào em tao là Thắng a.k.a acquy 666 bây giờ đã sẽ hạ em và làm em quên đi hàng từ",
         action: game.princeMode ? "CHIẾN ĐẤU CÙNG HOÀNG TỬ" : "BẮT ĐẦU CHIẾN ĐẤU",
+      });
+    }
+
+    function startPrincePhase(now) {
+      game.princeMode = true;
+      game.lives = 3;
+      game.bossShots = [];
+      game.bullets = [];
+      game.bossDialogueOpen = true;
+      game.lastPrinceSlash = now;
+      game.invulnerableUntil = 0;
+      game.shieldUntil = 0;
+      setHud((current) => ({
+        ...current,
+        lives: game.lives,
+        shield: false,
+        princeMode: true,
+      }));
+
+      setBossDialogue({
+        title: "HOÀNG TỬ",
+        message:
+          "Anh xin lỗi vì để em phải chiến đấu một mình, anh đã ở đây bên em rồi em đừng lo",
+        action: "CHIẾN ĐẤU CÙNG HOÀNG TỬ",
       });
     }
 
@@ -468,21 +498,33 @@ export default function GameCanvas({
           !game.princeMode &&
           now - game.lastBossAttack >= 650
         ) {
-          const angleToPlayer = Math.atan2(
-            game.player.x - game.bossX,
-            game.player.y - game.bossY
-          );
-          [-0.26, 0, 0.26].forEach((spread) => {
-            const angle = angleToPlayer + spread;
+          if (game.bossAttackCount === 0) {
             game.bossShots.push({
-              x: game.bossX,
+              x: WIDTH / 2,
               y: game.bossY + 28,
-              vx: Math.sin(angle) * 6,
-              vy: Math.cos(angle) * 6,
-              width: 16,
-              height: 36,
+              vx: 0,
+              vy: 8,
+              width: WIDTH,
+              height: 56,
             });
-          });
+          } else {
+            const angleToPlayer = Math.atan2(
+              game.player.x - game.bossX,
+              game.player.y - game.bossY
+            );
+            [-0.26, 0, 0.26].forEach((spread) => {
+              const angle = angleToPlayer + spread;
+              game.bossShots.push({
+                x: game.bossX,
+                y: game.bossY + 28,
+                vx: Math.sin(angle) * 6,
+                vy: Math.cos(angle) * 6,
+                width: 16,
+                height: 36,
+              });
+            });
+          }
+          game.bossAttackCount += 1;
           game.lastBossAttack = now;
         }
 
@@ -500,8 +542,10 @@ export default function GameCanvas({
               (shot.height + game.player.height) / 2;
 
           if (hitPlayer) {
-            loseLife(now);
-            if (game.ended) return;
+            if (!game.princeMode) {
+              startPrincePhase(now);
+              return;
+            }
           } else if (
             shot.y < HEIGHT + shot.height &&
             shot.x > -shot.width &&
@@ -1129,7 +1173,7 @@ export default function GameCanvas({
 
       window.clearTimeout(noticeTimeoutRef.current);
     };
-  }, [bossLosses, onBossLoss, onGameOver, onVictory, showNotice]);
+  }, [onGameOver, onVictory, showNotice]);
 
   return (
     <div className="game-container">
@@ -1154,7 +1198,9 @@ export default function GameCanvas({
       <div className="game-status">
         <span>ĐỘ KHÓ: {hud.level}</span>
         <span>
-          {hud.princeMode ? "⚔️ HOÀNG TỬ" : `SÁT THƯƠNG: ${hud.damage}/3`}
+          {hud.princeMode
+            ? "PHASE 2 · ⚔️ HOÀNG TỬ"
+            : `SÁT THƯƠNG: ${hud.damage}/3`}
         </span>
         <span>
           {hud.shield ? "🛡️ BẢO VỆ" : "⚔️ CHIẾN ĐẤU"}
