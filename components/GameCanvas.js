@@ -45,7 +45,7 @@ export default function GameCanvas({ onGameOver, onVictory, onExit }) {
     const game = {
       score: 0,
       lives: 3,
-      maxLives: 5,
+      maxLives: 100,
       damage: 1,
       maxDamage: 3,
 
@@ -54,7 +54,7 @@ export default function GameCanvas({ onGameOver, onVictory, onExit }) {
         y: HEIGHT - 95,
         width: 64,
         height: 76,
-        speed: 5,
+        speed: 3.8,
       },
 
       bullets: [],
