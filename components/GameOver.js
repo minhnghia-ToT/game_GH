@@ -1,4 +1,4 @@
-
+// GameOver.js
 "use client";
 
 export default function GameOver({

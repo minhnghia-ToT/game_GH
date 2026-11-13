@@ -1,4 +1,4 @@
-
+/* globals.css */
 @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Nunito:wght@400;600;700;800;900&display=swap');
 
 :root {
@@ -920,5 +920,84 @@ button:focus-visible {
 
   .explanation-card h1 {
     font-size: 28px;
+  }
+}
+/* ========================================
+   BOSS DIALOGUE
+======================================== */
+
+.boss-dialogue-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(5, 4, 15, 0.88);
+  backdrop-filter: blur(8px);
+}
+
+.boss-dialogue-card {
+  width: min(440px, 100%);
+  padding: 32px 26px;
+  text-align: center;
+  color: #fff;
+  background: linear-gradient(145deg, #211020, #100d1c);
+  border: 2px solid #b83259;
+  box-shadow:
+    0 0 25px rgba(255, 40, 90, 0.25),
+    inset 0 0 25px rgba(255, 40, 90, 0.08);
+  animation: bossDialogAppear 0.35s ease-out;
+}
+
+.boss-dialogue-label {
+  color: #ff668b;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 3px;
+  margin-bottom: 16px;
+}
+
+.boss-dialogue-card h2 {
+  color: #ffe3ec;
+  font-size: 22px;
+  margin-bottom: 20px;
+  letter-spacing: 1px;
+}
+
+.boss-dialogue-card p:not(.boss-dialogue-label) {
+  color: #e8dce5;
+  font-size: 15px;
+  line-height: 1.8;
+  margin-bottom: 26px;
+}
+
+.boss-dialogue-card button {
+  padding: 13px 25px;
+  border: 1px solid #ff668b;
+  background: #8b173a;
+  color: white;
+  font-weight: 800;
+  letter-spacing: 1px;
+  cursor: pointer;
+  transition: 0.25s ease;
+}
+
+.boss-dialogue-card button:hover {
+  background: #c42655;
+  box-shadow: 0 0 20px rgba(255, 60, 110, 0.4);
+  transform: translateY(-2px);
+}
+
+@keyframes bossDialogAppear {
+  from {
+    opacity: 0;
+    transform: translateY(20px) scale(0.95);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
   }
 }

@@ -1,40 +1,33 @@
-
 "use client";
 
 export default function VictoryScreen({
   score,
   onRetry,
   onHome,
+  victoryType = "princess",
 }) {
+  const princeVictory = victoryType === "prince";
+
   return (
     <section className="victory-screen">
-
       <div className="victory-card">
-
         <div className="victory-crown">
-          ♛
+          {princeVictory ? "⚔" : "♛"}
         </div>
 
         <p className="section-label">
-          MISSION COMPLETED
+          {princeVictory ? "THE PRINCE HAS ARRIVED" : "MISSION COMPLETED"}
         </p>
 
         <div className="victory-heart">
-
           <div className="heart-content">
-
             <p>
-              Chúc mừng em đã
-              <br />
-              bảo vệ được hoàng tử
-              <br />
-              của đời mình
+              {princeVictory
+                ? "Anh đã đến để bảo vệ em"
+                : "Chúc mừng em đã bảo vệ được hoàng tử của đời mình"}
             </p>
-
             <span>♥</span>
-
           </div>
-
         </div>
 
         <div className="victory-character">
@@ -48,16 +41,28 @@ export default function VictoryScreen({
           <span>♡</span>
         </div>
 
-        <h1>YOU ARE MY HERO!</h1>
+        <h1>
+          {princeVictory ? "I WILL PROTECT YOU!" : "YOU ARE MY HERO!"}
+        </h1>
 
         <p className="victory-score">
           {score} / 100 SOULS DEFEATED
         </p>
 
         <p className="victory-description">
-          Em đã hoàn thành nhiệm vụ rồi.
-          <br />
-          Yêu em nhiều! ♡
+          {princeVictory ? (
+            <>
+              Anh đã nói là sẽ không để em chịu thiệt hay tổn thương mà.
+              <br />
+              Thằng này sẽ phải chết!!!
+            </>
+          ) : (
+            <>
+              Em đã hoàn thành nhiệm vụ rồi.
+              <br />
+              Yêu em nhiều! ♡
+            </>
+          )}
         </p>
 
         <button
@@ -67,15 +72,10 @@ export default function VictoryScreen({
           CHƠI LẠI
         </button>
 
-        <button
-          className="back-button"
-          onClick={onHome}
-        >
+        <button className="back-button" onClick={onHome}>
           QUAY VỀ MENU
         </button>
-
       </div>
-
     </section>
   );
 }

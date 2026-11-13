@@ -7,7 +7,13 @@ const WIDTH = 480;
 const HEIGHT = 720;
 const WIN_SCORE = 100;
 
-export default function GameCanvas({ onGameOver, onVictory, onExit }) {
+export default function GameCanvas({
+  bossLosses = 0,
+  onBossLoss,
+  onGameOver,
+  onVictory,
+  onExit,
+}) {
   const canvasRef = useRef(null);
   const gameRef = useRef(null);
   const animationRef = useRef(null);
@@ -19,14 +25,17 @@ export default function GameCanvas({ onGameOver, onVictory, onExit }) {
     level: "DỄ",
     damage: 1,
     shield: false,
+    princeMode: false,
   });
 
   const [notice, setNotice] = useState("");
+  const [bossDialogue, setBossDialogue] = useState(null);
+  const noticeTimeoutRef = useRef(null);
 
   const showNotice = useCallback((message) => {
     setNotice(message);
-    window.clearTimeout(showNotice.timeout);
-    showNotice.timeout = window.setTimeout(() => {
+    window.clearTimeout(noticeTimeoutRef.current);
+    noticeTimeoutRef.current = window.setTimeout(() => {
       setNotice("");
     }, 1400);
   }, []);
@@ -45,7 +54,7 @@ export default function GameCanvas({ onGameOver, onVictory, onExit }) {
     const game = {
       score: 0,
       lives: 3,
-      maxLives: 5,
+      maxLives: 100,
       damage: 1,
       maxDamage: 3,
 
@@ -54,12 +63,24 @@ export default function GameCanvas({ onGameOver, onVictory, onExit }) {
         y: HEIGHT - 95,
         width: 64,
         height: 76,
-        speed: 5,
+        speed: 3.8,
       },
 
       bullets: [],
       ghosts: [],
       items: [],
+      bossActive: false,
+      bossHp: 100,
+      bossX: WIDTH / 2,
+      bossY: 125,
+      bossShots: [],
+      princeMode: false,
+      bossDialogueOpen: false,
+      lastBossAttack: 0,
+      lastPrinceSlash: 0,
+      princeSlashUntil: 0,
+      bossSplitAt: 0,
+      victoryPending: false,
 
       keys: {},
       mouseDown: false,
@@ -177,7 +198,8 @@ export default function GameCanvas({ onGameOver, onVictory, onExit }) {
     // =========================
 
     function spawnItem(now) {
-      if (now - game.lastItemSpawn < 8000) return;
+      const spawnInterval = game.bossActive ? 4500 : 8000;
+      if (now - game.lastItemSpawn < spawnInterval) return;
 
       // M10 chỉ xuất hiện khi có ít nhất 8 con ma.
       const canSpawnM10 = game.ghosts.length >= 8;
@@ -244,7 +266,66 @@ export default function GameCanvas({ onGameOver, onVictory, onExit }) {
 
       if (game.lives <= 0) {
         game.ended = true;
+        if (game.bossActive && !game.princeMode) {
+          onBossLoss?.();
+        }
         onGameOver?.(game.score);
+      }
+    }
+
+    function startBoss(now) {
+      if (game.bossActive) return;
+
+      game.bossActive = true;
+      game.bossHp = 100;
+      game.bossX = WIDTH / 2;
+      game.bossShots = [];
+      game.ghosts = [];
+      game.bullets = [];
+      game.princeMode = bossLosses > 3;
+      game.bossDialogueOpen = true;
+      game.lastBossAttack = now;
+      game.lastPrinceSlash = now;
+
+      setBossDialogue({
+        title: game.princeMode ? "HOÀNG TỬ" : "THẮNG A.K.A ACQUY 666",
+        message: game.princeMode
+          ? "Anh xin lỗi vì để em phải chiến đấu một mình, anh đã ở đây bên em rồi em đừng lo"
+          : "Chào em tao là Thắng a.k.a acquy 666 bây giờ đã sẽ hạ em và làm em quên đi hàng từ",
+        action: game.princeMode ? "CHIẾN ĐẤU CÙNG HOÀNG TỬ" : "BẮT ĐẦU CHIẾN ĐẤU",
+      });
+    }
+
+    function defeatBoss(type, now) {
+      if (game.ended || game.victoryPending) return;
+      game.bossHp = 0;
+
+      if (type === "prince") {
+        game.victoryPending = true;
+        game.bossSplitAt = now;
+        return;
+      }
+
+      game.ended = true;
+      onVictory?.(WIN_SCORE, type);
+    }
+
+    function slashBoss(now, force = false) {
+      const cooldown = force ? 250 : 700;
+      if (
+        now - game.lastPrinceSlash < cooldown ||
+        game.ended ||
+        game.bossHp <= 0
+      ) {
+        return;
+      }
+
+      game.bossHp = Math.max(0, game.bossHp - 20);
+      game.lastPrinceSlash = now;
+      game.princeSlashUntil = now + 240;
+
+      if (game.bossHp === 0) {
+        defeatBoss("prince", now);
       }
     }
 
@@ -290,8 +371,11 @@ export default function GameCanvas({ onGameOver, onVictory, onExit }) {
           showNotice(`💣 M10! TIÊU DIỆT ${destroyedCount} CON MA!`);
 
           if (game.score >= WIN_SCORE) {
-            game.ended = true;
-            onVictory?.(WIN_SCORE);
+            if (game.bossActive) {
+              game.score = WIN_SCORE;
+            } else {
+              startBoss(now);
+            }
           }
           break;
         }
@@ -307,6 +391,15 @@ export default function GameCanvas({ onGameOver, onVictory, onExit }) {
 
     function update(now) {
       if (game.ended) return;
+      if (game.bossDialogueOpen) return;
+      if (game.victoryPending) {
+        if (now - game.bossSplitAt >= 650) {
+          game.victoryPending = false;
+          game.ended = true;
+          onVictory?.(WIN_SCORE, "prince");
+        }
+        return;
+      }
 
       const difficulty = getDifficulty();
 
@@ -339,16 +432,21 @@ export default function GameCanvas({ onGameOver, onVictory, onExit }) {
       );
 
       // Bắn đạn.
-      if (
+      const isShooting =
         game.keys.Space ||
         game.mouseDown ||
-        game.touch.shoot
-      ) {
+        game.touch.shoot;
+
+      if (game.princeMode && game.bossActive) {
+        slashBoss(now, isShooting);
+      } else if (isShooting) {
         shoot(now);
       }
 
       // Sinh ma và vật phẩm.
-      spawnGhost(now);
+      if (!game.bossActive) {
+        spawnGhost(now);
+      }
       spawnItem(now);
 
       // Di chuyển sao nền.
@@ -369,6 +467,59 @@ export default function GameCanvas({ onGameOver, onVictory, onExit }) {
       game.bullets = game.bullets.filter(
         (bullet) => bullet.y + bullet.height > 0
       );
+
+      if (game.bossActive) {
+        game.bossX = WIDTH / 2 + Math.sin(now / 900) * 125;
+
+        if (
+          !game.princeMode &&
+          game.bossHp <= 20 &&
+          now - game.lastBossAttack >= 800
+        ) {
+          const angleToPlayer = Math.atan2(
+            game.player.x - game.bossX,
+            HEIGHT - game.bossY
+          );
+          [-0.2, 0, 0.2].forEach((spread) => {
+            const angle = angleToPlayer + spread;
+            game.bossShots.push({
+              x: game.bossX,
+              y: game.bossY + 28,
+              vx: Math.sin(angle) * 4,
+              vy: Math.cos(angle) * 4,
+              width: 10,
+              height: 28,
+            });
+          });
+          game.lastBossAttack = now;
+        }
+
+        game.bossShots.forEach((shot) => {
+          shot.x += shot.vx;
+          shot.y += shot.vy;
+        });
+
+        const remainingBossShots = [];
+        for (const shot of game.bossShots) {
+          const hitPlayer =
+            Math.abs(shot.x - game.player.x) <
+              (shot.width + game.player.width) / 2 &&
+            Math.abs(shot.y - game.player.y) <
+              (shot.height + game.player.height) / 2;
+
+          if (hitPlayer) {
+            loseLife(now);
+            if (game.ended) return;
+          } else if (
+            shot.y < HEIGHT + shot.height &&
+            shot.x > -shot.width &&
+            shot.x < WIDTH + shot.width
+          ) {
+            remainingBossShots.push(shot);
+          }
+        }
+        game.bossShots = remainingBossShots;
+      }
 
       // Di chuyển vật phẩm.
       game.items.forEach((item) => {
@@ -407,7 +558,21 @@ export default function GameCanvas({ onGameOver, onVictory, onExit }) {
       for (const bullet of game.bullets) {
         let hit = false;
 
+        if (
+          game.bossActive &&
+          Math.abs(bullet.x - game.bossX) < (78 + bullet.width) / 2 &&
+          Math.abs(bullet.y - game.bossY) < (60 + bullet.height) / 2
+        ) {
+          game.bossHp = Math.max(0, game.bossHp - bullet.damage);
+          hit = true;
+          if (game.bossHp === 0) {
+            defeatBoss("princess", now);
+            return;
+          }
+        }
+
         for (const ghost of game.ghosts) {
+          if (hit) break;
           const collision =
             Math.abs(bullet.x - ghost.x) <
               (ghost.width + bullet.width) / 2 &&
@@ -435,6 +600,11 @@ export default function GameCanvas({ onGameOver, onVictory, onExit }) {
       game.bullets = remainingBullets;
       game.ghosts = game.ghosts.filter((ghost) => !ghost.destroyed);
 
+      if (!game.bossActive && game.score >= WIN_SCORE) {
+        startBoss(now);
+        return;
+      }
+
       // Ma chạm vào người chơi hoặc vượt khỏi màn hình.
       for (const ghost of game.ghosts) {
         const collision =
@@ -456,13 +626,6 @@ export default function GameCanvas({ onGameOver, onVictory, onExit }) {
 
       game.ghosts = game.ghosts.filter((ghost) => !ghost.destroyed);
 
-      // Kiểm tra chiến thắng.
-      if (game.score >= WIN_SCORE) {
-        game.ended = true;
-        onVictory?.(WIN_SCORE);
-        return;
-      }
-
       // Cập nhật HUD.
       if (now - game.lastHudUpdate > 100) {
         setHud({
@@ -473,6 +636,7 @@ export default function GameCanvas({ onGameOver, onVictory, onExit }) {
           shield:
             now < game.shieldUntil ||
             now < game.invulnerableUntil,
+          princeMode: game.princeMode,
         });
 
         game.lastHudUpdate = now;
@@ -516,7 +680,50 @@ export default function GameCanvas({ onGameOver, onVictory, onExit }) {
         }
       }
 
-      if (imageRef.current?.complete && imageRef.current.naturalWidth > 0) {
+      if (game.princeMode) {
+        ctx.fillStyle = "#5ba8ff";
+        ctx.fillRect(
+          player.x - 19,
+          player.y - 22,
+          38,
+          43
+        );
+        ctx.fillStyle = "#ffe06a";
+        ctx.fillRect(player.x - 20, player.y - 30, 40, 8);
+        ctx.fillRect(player.x - 14, player.y - 38, 7, 9);
+        ctx.fillRect(player.x - 3, player.y - 42, 7, 13);
+        ctx.fillRect(player.x + 8, player.y - 38, 7, 9);
+        ctx.fillStyle = "#fff";
+        ctx.fillRect(player.x - 9, player.y - 10, 5, 6);
+        ctx.fillRect(player.x + 5, player.y - 10, 5, 6);
+
+        ctx.save();
+        ctx.strokeStyle = "#e7f2ff";
+        ctx.lineWidth = 5;
+        ctx.beginPath();
+        ctx.moveTo(player.x + 22, player.y - 7);
+        ctx.lineTo(player.x + 44, player.y - 36);
+        ctx.stroke();
+        ctx.strokeStyle = "#ffe06a";
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(player.x + 15, player.y - 10);
+        ctx.lineTo(player.x + 27, player.y - 1);
+        ctx.stroke();
+        ctx.restore();
+
+        if (now < game.princeSlashUntil) {
+          ctx.save();
+          ctx.strokeStyle = "#fff36a";
+          ctx.lineWidth = 8;
+          ctx.shadowColor = "#fff36a";
+          ctx.shadowBlur = 18;
+          ctx.beginPath();
+          ctx.arc(player.x, player.y - 20, 72, -0.8, 0.7);
+          ctx.stroke();
+          ctx.restore();
+        }
+      } else if (imageRef.current?.complete && imageRef.current.naturalWidth > 0) {
         ctx.drawImage(
           imageRef.current,
           player.x - player.width / 2,
@@ -635,11 +842,78 @@ export default function GameCanvas({ onGameOver, onVictory, onExit }) {
       });
     }
 
+    function drawBoss(now) {
+      if (!game.bossActive) return;
+
+      if (game.bossHp <= 0) {
+        if (!game.victoryPending) return;
+
+        const progress = Math.min(
+          1,
+          (now - game.bossSplitAt) / 650
+        );
+        const split = 40 + progress * 45;
+        ctx.save();
+        ctx.fillStyle = "#5c172e";
+        ctx.shadowColor = "#ff315e";
+        ctx.shadowBlur = 22;
+        ctx.fillRect(game.bossX - split, game.bossY - 23 - progress * 20, 40, 52);
+        ctx.fillRect(game.bossX + split, game.bossY - 23 - progress * 20, 40, 52);
+        ctx.restore();
+        return;
+      }
+
+      ctx.save();
+      ctx.fillStyle = "#5c172e";
+      ctx.shadowColor = "#ff315e";
+      ctx.shadowBlur = 22;
+      ctx.fillRect(game.bossX - 40, game.bossY - 23, 80, 52);
+      ctx.fillRect(game.bossX - 53, game.bossY - 10, 13, 30);
+      ctx.fillRect(game.bossX + 40, game.bossY - 10, 13, 30);
+      ctx.fillStyle = "#ff365c";
+      ctx.fillRect(game.bossX - 26, game.bossY - 9, 12, 9);
+      ctx.fillRect(game.bossX + 14, game.bossY - 9, 12, 9);
+      ctx.fillStyle = "#ffe4ea";
+      ctx.fillRect(game.bossX - 22, game.bossY - 7, 5, 4);
+      ctx.fillRect(game.bossX + 18, game.bossY - 7, 5, 4);
+      ctx.restore();
+
+      ctx.fillStyle = "#401322";
+      ctx.fillRect(WIDTH / 2 - 120, 25, 240, 13);
+      ctx.fillStyle = "#ff315e";
+      ctx.fillRect(
+        WIDTH / 2 - 120,
+        25,
+        240 * (game.bossHp / 100),
+        13
+      );
+      ctx.fillStyle = "#fff";
+      ctx.font = "bold 12px monospace";
+      ctx.textAlign = "center";
+      ctx.fillText(`THẮNG A.K.A ACQUY 666 - ${game.bossHp}/100 HP`, WIDTH / 2, 19);
+    }
+
+    function drawBossShots() {
+      game.bossShots.forEach((shot) => {
+        ctx.save();
+        ctx.fillStyle = "#ff315e";
+        ctx.shadowColor = "#ff1744";
+        ctx.shadowBlur = 16;
+        ctx.fillRect(
+          shot.x - shot.width / 2,
+          shot.y - shot.height / 2,
+          shot.width,
+          shot.height
+        );
+        ctx.restore();
+      });
+    }
+
     // =========================
     // VẼ VẬT PHẨM
     // =========================
 
-    function drawItems(now) {
+    function drawItems() {
       game.items.forEach((item) => {
         const x = item.x;
         const y = item.y;
@@ -739,9 +1013,11 @@ export default function GameCanvas({ onGameOver, onVictory, onExit }) {
 
     function draw(now) {
       drawBackground();
-      drawItems(now);
+      drawItems();
       drawBullets();
       drawGhosts();
+      drawBoss(now);
+      drawBossShots();
       drawPlayer(now);
       drawExplosion(now);
     }
@@ -871,9 +1147,9 @@ export default function GameCanvas({ onGameOver, onVictory, onExit }) {
       canvas.removeEventListener("touchmove", handleTouchMove);
       canvas.removeEventListener("touchend", handleTouchEnd);
 
-      window.clearTimeout(showNotice.timeout);
+      window.clearTimeout(noticeTimeoutRef.current);
     };
-  }, [onGameOver, onVictory, showNotice]);
+  }, [bossLosses, onBossLoss, onGameOver, onVictory, showNotice]);
 
   return (
     <div className="game-container">
@@ -897,7 +1173,9 @@ export default function GameCanvas({ onGameOver, onVictory, onExit }) {
 
       <div className="game-status">
         <span>ĐỘ KHÓ: {hud.level}</span>
-        <span>SÁT THƯƠNG: {hud.damage}/3</span>
+        <span>
+          {hud.princeMode ? "⚔️ HOÀNG TỬ" : `SÁT THƯƠNG: ${hud.damage}/3`}
+        </span>
         <span>
           {hud.shield ? "🛡️ BẢO VỆ" : "⚔️ CHIẾN ĐẤU"}
         </span>
@@ -906,6 +1184,32 @@ export default function GameCanvas({ onGameOver, onVictory, onExit }) {
       {notice && (
         <div className="game-notice" role="status">
           {notice}
+        </div>
+      )}
+
+      {bossDialogue && (
+        <div className="boss-dialogue-overlay">
+          <div
+            className="boss-dialogue-card"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="boss-dialogue-title"
+          >
+            <p className="boss-dialogue-label">ĐỐI THỦ XUẤT HIỆN</p>
+            <h2 id="boss-dialogue-title">{bossDialogue.title}</h2>
+            <p>{bossDialogue.message}</p>
+            <button
+              type="button"
+              onClick={() => {
+                if (gameRef.current) {
+                  gameRef.current.bossDialogueOpen = false;
+                }
+                setBossDialogue(null);
+              }}
+            >
+              {bossDialogue.action}
+            </button>
+          </div>
         </div>
       )}
 
@@ -918,7 +1222,9 @@ export default function GameCanvas({ onGameOver, onVictory, onExit }) {
 
       <div className="game-controls-help">
         <span>← → / A D: Di chuyển</span>
-        <span>SPACE / Chuột trái: Bắn</span>
+        <span>
+          SPACE / Chuột trái: {hud.princeMode ? "Chém" : "Bắn"}
+        </span>
       </div>
 
       <div className="mobile-controls">
@@ -973,7 +1279,7 @@ export default function GameCanvas({ onGameOver, onVictory, onExit }) {
             }
           }}
         >
-          🔫
+          {hud.princeMode ? "⚔️" : "🔫"}
         </button>
 
         <button
