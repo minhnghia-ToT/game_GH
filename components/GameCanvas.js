@@ -296,18 +296,11 @@ export default function GameCanvas({
       });
     }
 
-    function defeatBoss(type, now) {
+    function defeatBoss(now) {
       if (game.ended || game.victoryPending) return;
       game.bossHp = 0;
-
-      if (type === "prince") {
-        game.victoryPending = true;
-        game.bossSplitAt = now;
-        return;
-      }
-
-      game.ended = true;
-      onVictory?.(WIN_SCORE, type);
+      game.victoryPending = true;
+      game.bossSplitAt = now;
     }
 
     function slashBoss(now, force = false) {
@@ -325,7 +318,7 @@ export default function GameCanvas({
       game.princeSlashUntil = now + 240;
 
       if (game.bossHp === 0) {
-        defeatBoss("prince", now);
+        defeatBoss(now);
       }
     }
 
@@ -439,7 +432,7 @@ export default function GameCanvas({
 
       if (game.princeMode && game.bossActive) {
         slashBoss(now, isShooting);
-      } else if (isShooting) {
+      } else if (isShooting && !game.bossActive) {
         shoot(now);
       }
 
@@ -473,22 +466,21 @@ export default function GameCanvas({
 
         if (
           !game.princeMode &&
-          game.bossHp <= 20 &&
-          now - game.lastBossAttack >= 800
+          now - game.lastBossAttack >= 650
         ) {
           const angleToPlayer = Math.atan2(
             game.player.x - game.bossX,
-            HEIGHT - game.bossY
+            game.player.y - game.bossY
           );
-          [-0.2, 0, 0.2].forEach((spread) => {
+          [-0.26, 0, 0.26].forEach((spread) => {
             const angle = angleToPlayer + spread;
             game.bossShots.push({
               x: game.bossX,
               y: game.bossY + 28,
-              vx: Math.sin(angle) * 4,
-              vy: Math.cos(angle) * 4,
-              width: 10,
-              height: 28,
+              vx: Math.sin(angle) * 6,
+              vy: Math.cos(angle) * 6,
+              width: 16,
+              height: 36,
             });
           });
           game.lastBossAttack = now;
@@ -558,21 +550,9 @@ export default function GameCanvas({
       for (const bullet of game.bullets) {
         let hit = false;
 
-        if (
-          game.bossActive &&
-          Math.abs(bullet.x - game.bossX) < (78 + bullet.width) / 2 &&
-          Math.abs(bullet.y - game.bossY) < (60 + bullet.height) / 2
-        ) {
-          game.bossHp = Math.max(0, game.bossHp - bullet.damage);
-          hit = true;
-          if (game.bossHp === 0) {
-            defeatBoss("princess", now);
-            return;
-          }
-        }
-
         for (const ghost of game.ghosts) {
           if (hit) break;
+
           const collision =
             Math.abs(bullet.x - ghost.x) <
               (ghost.width + bullet.width) / 2 &&
