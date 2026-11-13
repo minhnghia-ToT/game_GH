@@ -1,8 +1,6 @@
-
 "use client";
 
-import { useState } from "react";
-
+import { useCallback, useState } from "react";
 import MainMenu from "../components/MainMenu";
 import Instructions from "../components/Instructions";
 import Explanation from "../components/Explanation";
@@ -11,43 +9,50 @@ import GameOver from "../components/GameOver";
 import VictoryScreen from "../components/VictoryScreen";
 
 export default function Home() {
-  // Quản lý màn hình hiện tại
   const [screen, setScreen] = useState("menu");
-
-  // Quản lý điểm số
   const [score, setScore] = useState(0);
-
-  // Tạo ID mới để khởi động lại game
   const [gameId, setGameId] = useState(0);
+  const [bossLosses, setBossLosses] = useState(0);
+  const [victoryType, setVictoryType] = useState("princess");
 
-  // Bắt đầu game mới
+  // Bắt đầu một hành trình mới: xóa số lần thua Boss.
   const handleStartGame = () => {
+    setScore(0);
+    setBossLosses(0);
+    setVictoryType("princess");
+    setGameId((prev) => prev + 1);
+    setScreen("playing");
+  };
+
+  // Chơi lại: giữ nguyên số lần thất bại với Boss.
+  const handleRetry = () => {
     setScore(0);
     setGameId((prev) => prev + 1);
     setScreen("playing");
   };
 
-  // Kết thúc game
-  const handleGameOver = (finalScore) => {
+  const handleBossLoss = useCallback(() => {
+    setBossLosses((prev) => prev + 1);
+  }, []);
+
+  const handleGameOver = useCallback((finalScore) => {
     setScore(finalScore);
     setScreen("gameover");
-  };
+  }, []);
 
-  // Chiến thắng
-  const handleVictory = (finalScore) => {
+  const handleVictory = useCallback((finalScore, type = "princess") => {
     setScore(finalScore);
+    setVictoryType(type);
     setScreen("victory");
-  };
+  }, []);
 
-  // Quay về menu chính
   const handleBackToMenu = () => {
+    setBossLosses(0);
     setScreen("menu");
   };
 
   return (
     <main className="game-app">
-
-      {/* MÀN HÌNH MENU */}
       {screen === "menu" && (
         <MainMenu
           onPlay={handleStartGame}
@@ -56,49 +61,44 @@ export default function Home() {
         />
       )}
 
-      {/* MÀN HÌNH HƯỚNG DẪN */}
       {screen === "instructions" && (
         <Instructions
           onBack={handleBackToMenu}
           onPlay={handleStartGame}
         />
-      )}  
-
-      {/* MÀN HÌNH GIẢI THÍCH */}
-      {screen === "explanation" && (
-        <Explanation
-          onBack={handleBackToMenu}
-        />
       )}
 
-      {/* MÀN HÌNH GAMEPLAY */}
+      {screen === "explanation" && (
+        <Explanation onBack={handleBackToMenu} />
+      )}
+
       {screen === "playing" && (
         <GameCanvas
           key={gameId}
+          bossLosses={bossLosses}
+          onBossLoss={handleBossLoss}
           onGameOver={handleGameOver}
           onVictory={handleVictory}
           onExit={handleBackToMenu}
         />
       )}
 
-      {/* MÀN HÌNH GAME OVER */}
       {screen === "gameover" && (
         <GameOver
           score={score}
-          onRetry={handleStartGame}
+          onRetry={handleRetry}
           onHome={handleBackToMenu}
         />
       )}
 
-      {/* MÀN HÌNH CHIẾN THẮNG */}
       {screen === "victory" && (
         <VictoryScreen
           score={score}
+          victoryType={victoryType}
           onRetry={handleStartGame}
           onHome={handleBackToMenu}
         />
       )}
-
     </main>
   );
 }
